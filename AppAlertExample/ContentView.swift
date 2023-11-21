@@ -12,7 +12,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var alertService = AlertService("https://stewartlynchdemo.github.io/AppAlert/messages.json")
+    @State private var alertService = AlertService("https://stewartlynch.github.io/AppAlerts/messages.json")
     var body: some View {
         VStack {
             Image(systemName: "globe")
