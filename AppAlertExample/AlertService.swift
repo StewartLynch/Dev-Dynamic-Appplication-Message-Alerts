@@ -19,12 +19,17 @@ class AlertService {
             let title: String
             let url: String
         }
+        struct Version: Codable {
+            var app: [String] = []
+            var os: [String] = []
+        }
         var id: Int = 0
         var bundleId: String = ""
         var title: String = ""
         var text: String = ""
         var confirmLabel: String = ""
         var link: Link?
+        var version: Version?
     }
     
     let jsonURL: String
@@ -33,6 +38,8 @@ class AlertService {
     var showMessage = false
     static let cacheLocation = URL.cachesDirectory
     static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferences")
+    static let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as! String
+    static let osVersion = UIDevice.current.systemVersion
     
     var lastMessageId: Int {
         get {
@@ -50,6 +57,7 @@ class AlertService {
     func fetchMessage() async {
         do {
             let (data, _) = try await URLSession.shared.data(from: URL(string: jsonURL)!)
+            print(String(decoding: data, as: UTF8.self))
             if let message = try JSONDecoder().decode(
                 [Message].self,
                 from: data
