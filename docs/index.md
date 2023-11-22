@@ -318,9 +318,19 @@ That is it done.
 5. This will also update the *lastMessageId* to that value.
 6. If you run the app again a second time, you will find that the alert is not presented.
 
-Let's pretend now that you have another issue that we need to alert your users to but you want to do more than what you have already.  You would like to provide an option for your users to click on a link that can go to some external web site.
+## Enhancements and more checks
 
-#### Update the Message struct
+Just checking to see if an alert has been displayed or not, may not be granular enough for your needs or perhaps you would like to provide a way for your users to get more information about the issue.
+
+It could quite possibly be the case that the problem only affects a particular app version or os version that the user is currently running on their device.
+
+### Update the Message struct
+
+#### Version Checking
+
+
+
+#### Link
 
 First then, you will need to create a new property in the message struct.
 
@@ -416,39 +426,93 @@ extension View {
 
 ### Update JSON Object
 
-1. Return to the **GitHub pages** repository and open the **messages.json** file for editing.
 
-   1. Increment the id.
-   2. Change the title and text to something appropriate.
-   3. This time provide a new object for the Link. (Make sure you add a comma after the confirmLabel key value pair).
-   4. The link object will have two key value pairs; one for the title and one for the url.
 
-   ```swift
-   "link":{
-      "title":"More information",
-      "url":"https://www.createchsol.com"
-   }
-   ```
+To solve this issue, you can introduce 3 more key value pairs in your messages.json file and adjust your message struct to accommodate the change so that your current implemetation of this solution will not break.
 
-   5. Commit and save the changes.
-
-   ```swift
+```swift
    [
       {
-         "id":2,
-         "bundleId":"com.createchsol.AppAlertExample",
+         "id":3,
+         "bundleId":"com.createchsol.AppAlertExampleExtra",
          "title":"App Alert",
          "text":"Warning:  There is a bug in the application and I am working on it.",
          "confirmLabel":"OK",
+         "osVersions": ["17.0.1", "17.2"],
+         "appVersions": ["1.0"],
          "link":{
             "title":"More information",
             "url":"https://www.createchsol.com"
          }
       }
    ]
+
+```
+
+1. Return to the **GitHub pages** repository and open the **messages.json** file for editing.
+
+   1. Increment the id.
+   2. Change the title and text to something appropriate.
+
+
+#### Version Checking
+
+1. Add two more key value pairs. (Make sure you add a comma after the confirmLabel key value pair).
+
+   1. For the first, create the key `osVersions` and for the value, priced an array of strings representing each of the different OS versions that the issue might apply to.  For example, at the time this document/video was created, the current iOS version is 17.0.1 and the beta version is 17.2
+   2. For the second, create th key `appVersions` and this too will be an array of your app versions that the issue might apply to.  For example current version of the app is 1.0, so create a single string element in the array, but in the future, the issue might also apply to previous versions of your app so you would have to include them as well.
+
+   ```swift
+    "osVersions": ["17.0.1", "17.2"]
+    "appVersions": ["1.0"],
    ```
 
-2. It will take up to 30 seconds for GitHub to clear its cache and update the site.  You can enter that url `https://stewartlynchdemo.github.io/AppAlert/messages.json` and keep refreshing the page, waiting for it to have been updated.
+   3. The previous two key value pairs will correspond to two properties that we will have to create in our *Message* struct, but they will be *optional* properties.  This means that you can omit one or more of these properties in your JSON if you do not want to check for it, like our original code.  **However, if you include one or both of them, you MUST provide an array of strings, or an empty array**.
+
+#### Link
+
+The Link, will be an optional button on the alert that will allow the user to navigate to an external web site by tapping on the link.
+
+1. The link object will have two key value pairs so this will require another json object
+
+   ```swift
+   "link": {
+     
+   }
+   ```
+   
+2. Inside the new json object, create two new key value pairs.  Both are strings.
+
+   1. The first will have a key of `title` and the value will be the string used on the link button.
+   2. The second will be the key `url` and it's value will be the string representing the url of the destination.
+```swift
+"link":{
+   "title":"More information",
+   "url":"https://www.createchsol.com"
+}
+```
+
+5. Commit and save the changes.
+
+```swift
+[
+  {
+     "id":2,
+     "bundleId":"com.createchsol.AppAlertExample",
+     "title":"App Alert",
+     "text":"Warning:  There is a bug in the application and I am working on it.",
+     "confirmLabel":"OK",
+     "osVersions": ["17.0.1", "17.2"],
+     "appVersions": ["1.0"],
+     "link":{
+        "title":"More information",
+        "url":"https://www.createchsol.com"
+     }
+  }
+]
+```
+
+1. It will take up to 30 seconds for GitHub to clear its cache and update the site.  You can enter that url `https://stewartlynchdemo.github.io/AppAlert/messages.json` and keep refreshing the page, waiting for it to have been updated.
 
 ### Test
 

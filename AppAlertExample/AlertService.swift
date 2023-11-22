@@ -19,27 +19,24 @@ class AlertService {
             let title: String
             let url: String
         }
-        struct Version: Codable {
-            var app: [String] = []
-            var os: [String] = []
-        }
         var id: Int = 0
         var bundleId: String = ""
         var title: String = ""
         var text: String = ""
         var confirmLabel: String = ""
+        var appVersions: [String]?
+        var osVersions: [String]?
         var link: Link?
-        var version: Version?
     }
     
     let jsonURL: String
     let bundleIdentifier = Bundle.main.bundleIdentifier!
     var message = Message()
     var showMessage = false
-    static let cacheLocation = URL.cachesDirectory
-    static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferences")
     static let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as! String
     static let osVersion = UIDevice.current.systemVersion
+    static let cacheLocation = URL.cachesDirectory
+    static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferences")
     
     var lastMessageId: Int {
         get {
@@ -73,9 +70,19 @@ class AlertService {
     
     func showAlertIfNecessary() async {
         await fetchMessage()
-        if message.id > lastMessageId {
-            showMessage.toggle()
+        guard message.id > lastMessageId else { return }
+        // Message has not been seen
+        if let osVersions = message.osVersions {
+            // Found an array of osVersions so check if current version is one of them
+            guard osVersions.contains(Self.osVersion) else { return }
         }
+        if let appVersions = message.appVersions {
+            // Found an array of appVersions so check if thiw version is one of them
+            guard appVersions.contains(Self.appVersion) else { return }
+        }
+
+        // All 3 guard checks have passed so show an alert
+        showMessage.toggle()
         lastMessageId = message.id
     }
     
