@@ -63,17 +63,17 @@ First, log in to your GitHub account.
    4. Follow this with a `text` key to represent the message text in an alert  and then the value, again, provide an appropriate string.
    5. For the final key, use `confirmLabel` and provide the string that you want use for the dismiss or confirmation button label on the alert.
 
-```swift
-[
-   {
-      "id": 1,
-      "bundleId": "com.createchsol.AppAlertExample",
-      "title": "App Alert",
-      "text": "Warning:  There is a bug in the application and I am working on it.",
-      "confirmLabel" : "OK"
-   }
-]
-```
+    ```swift
+    [
+       {
+          "id": 1,
+          "bundleId": "com.createchsol.AppAlertExample",
+          "title": "App Alert",
+          "text": "Warning:  There is a bug in the application and I am working on it.",
+          "confirmLabel" : "OK"
+       }
+    ]
+    ```
 
 ![image-20231116130223021](Images/image-20231116130223021.png)
 
@@ -320,21 +320,62 @@ That is it done.
 
 ## Enhancements and more checks
 
-Just checking to see if an alert has been displayed or not, may not be granular enough for your needs or perhaps you would like to provide a way for your users to get more information about the issue.
+Just checking to see if an alert has been displayed or not, may not be granular enough for your needs, or perhaps you would like to provide a way for your users to get more information about the issue.
 
 It could quite possibly be the case that the problem only affects a particular app version or os version that the user is currently running on their device.
+
+In this section we will account for both of these cases.
+
+### New Static Properties
+
+1. In **AppService**, create a new static property called `appVersion`.  To obtain this you can access the Bundle.main.infodictonary, providing the key "CFBundleShortVersionString" and cast it as a String.  The infoDictonary must also be unwrapped
+
+```swift
+static let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as! String
+```
+
+2. Create a second static property called `osVersion` and this can be derived from UIDevice.current.systemVersion
+
+```swift
+static let osVersion = UIDevice.current.systemVersion
+```
+
+3. If you want to see the output of these two properties when the app launches, you can add two print statements to an *onAppear* block at the app starting point.
+
+```swift
+print(AlertService.appVersion)
+print(AlertService.osVersion)
+```
+
+If you are going to perform a check on the version of the app that the user is running, or the version of iOS that they have installed, you will need to create two more static properties in your AppService
 
 ### Update the Message struct
 
 #### Version Checking
 
+Next, you need to update the *Message* struct so that it can decode the json if any of these two properties have corresponding values from the key value pairs that we might provide. 
 
+Since we may not care about these to properties, you can make them optional, but you might also want to check for more than one app version or os version, so you need to make the two properties optional and be an optional array of String representing the possible versions to check against.
+
+I would recommend you use a plural for both to signify that your properties are arrays.
+
+```swift
+var appVersions: [String]?
+var osVersions: [String]?
+```
 
 #### Link
 
-First then, you will need to create a new property in the message struct.
+The next property will be used for the alert presentation.  If it exists, we want it to provide a string for a label and another one for a url that we can form a url from and then add another action to our alert that will be a Link button with the label being the provided string and the destination the provided url.
 
-1. This property itself will include the link as well as the label for the link button, so within the *Message* struct, create a new struct called **Link** that conforms to the **Codable** protocol
+1. Since this is two properties and they are associated with each other, unlike the first two, you can create a struct called **Link** to represent these two properties.  Since it will have to be decoded, it must conform to the **Codable** protocol.
+
+```swift
+struct Link: Codable {
+  
+}
+```
+
 2. Then create two properties, one for `title` and one for `url`, both Strings.
 
 ```swift
@@ -344,68 +385,140 @@ struct Link: Codable {
 }
 ```
 
-3. As you may not want to include this link every time we present an alert, you can make it optional as an additional property for our Message struct.  This will mean that the existing *messages.json* is still valid for your current message instance.
+3. As you may not want to include this link every time you present an alert, you can make it optional as an additional property for your Message struct.  This will mean that the existing *messages.json* is still valid for the current message instance already tested.
 
 ```swift
 var link: Link?
 ```
 
+You now have potentially 3 more properties being decoded from the fetched json.  If the key value pairs are found those optional values will be part of you decoded and filtered message.
+
+Two of those properties will be used as checks along with the id to determine of an alert needs to be presented.  The link property will determine if the alert will have an additional button.
+
+### Update showAlertIfNecessary
+
+Now that there are two more properties to check and compare to see if an alert must be presented, the code on the **showAlertIfNecessary** function has to change to accommodate this.
+
+```swift
+await fetchMessage()
+if message.id > lastMessageId {
+    showMessage.toggle()
+}
+lastMessageId = message.id
+```
+
+1. You can leave the await for fetchMessage() call but instead of using an if statement, replace that with a guard statement.
+   1. Guard checking that the message.id is greater than lastMessageId requires that you provide and else statement
+   2. The else clause is run when the guard check fails, so you can simply return and do nothing
+
+    ```swift
+    guard message.id > lastMessageId else { return }
+    ```
+
+2. Follow this with another check that will use an `if...let` to check for and unwrap the message.osVersions if it decoded this, meaning that the json provided an **osVersions** key
+
+   1. If this is true, you can create another guard check to see if the found array contains the static **Self.osVersions**.  If it does not, in the else clause, you can return from the function and go no further.
+
+   ```swift
+   if let osVersions = message.osVersions {
+       guard osVersions.contains(Self.osVersion) else { return }
+   }
+   ```
+   
+   2. You can do a similar check to unwrap and check if the decoded **appVersions** property contains the **Self.appVersions** else return.
+   
+    ```swift
+    if let appVersions = message.appVersions {
+      guard appVersions.contains(Self.appVersion) else { return }
+    }
+    ```
+   3. If the function has not returned yet, then only now can you toggle the ***showMessage*** property and set the **lastMessageId** to the **message.id**
+
+    ```swift
+    showMessage.toggle()
+    lastMessageId = message.id
+    ```
+
+*Completed Function*
+
+```swift
+func showAlertIfNecessary() async {
+    await fetchMessage()
+    guard message.id > lastMessageId else { return }
+    // Message has not been seen
+    if let osVersions = message.osVersions {
+        // Found an array of osVersions so check if current version is one of them
+        guard osVersions.contains(Self.osVersion) else { return }
+    }
+    if let appVersions = message.appVersions {
+        // Found an array of appVersions so check if thiw version is one of them
+        guard appVersions.contains(Self.appVersion) else { return }
+    }
+
+    // All 3 guard checks have passed so show an alert
+    showMessage.toggle()
+    lastMessageId = message.id
+}
+```
+
+### Modify the Alert Code
+
+You still need to handle the case in the alert where a **link** object was decoded.
+
+In **ContentView** you can check to see if was made available to you when you fetched and decoded the JSON.
+
+1. After the Button,  use an `if let` to unwrap it and then create a **Link** button using the `link.title` as the label and the `link.url` to form a URL with that string for the destination url.  And it has to be unwrapped.
+
+  ```swift
+  if let link = alertService.message.link {
+      Link(link.title, destination: URL(string: link.url)!)
+  }
+  ```
+
 ### ViewModifier
 
-There is something that I do not like particularly in this implementation so far.  If you look at the code for contentView, that alert will always be the same for every app, so why not bring that code into your AlertService as a **ViewModifier**.
+There is also something that I do not particularly like about this implementation so far.  If you look at the code for that alert will note that it  be the same for every app, so why not bring that code into your **AlertService** as a **ViewModifier**.
 
 1. Cut out the *Alert* code and return to the **AlertService** file.
 2. **Import SwiftUI** as you will need it to create a view modifier.
 3. Inside the AlertService class, create a view modifier called **AlertModifier** that conforms to **ViewModifier**
    1. This will have one requirement, a body function that has *content* as a parameter and returns *some view* 
-   1. You can use that content then to apply an alert to.
+   2.  You can use that content then to apply an alert to.
 
-```swift
- struct AlertModifier: ViewModifier {
-   func body(content: Content) -> some View {
-     content
-   }
- }
-```
+    ```swift
+     struct AlertModifier: ViewModifier {
+       func body(content: Content) -> some View {
+         content
+       }
+     }
+    ```
 
-3. You can paste in the alert that you copied from contentView as the modifier for *content*
+3. You can paste in the alert that you copied from contentView as the modifier for *content*.
    1. This will complain because there is no **alertService**, so we will need to pass that in when we call the modifier.
-   1. So create a new property called **alertService** that is of type Alert Service** and it will have to be a **Bindable** object.
+   2. So create a new property called **alertService** that is of type Alert Service** and it will have to be a **Bindable** object.
 
-```swift
-struct AlertModifier: ViewModifier {
-    @Bindable var alertService: AlertService
-    func body(content: Content) -> some View {
-        content
-            .alert(
-                alertService.message.title,
-                isPresented: $alertService.showMessage) {
-                    Button(alertService.message.confirmLabel) {}
-                } message: {
-                    Text(alertService.message.text)
-                }
+    ```swift
+    struct AlertModifier: ViewModifier {
+        @Bindable var alertService: AlertService
+        func body(content: Content) -> some View {
+            content
+                .alert(
+                    alertService.message.title,
+                    isPresented: $alertService.showMessage) {
+                        Button(alertService.message.confirmLabel) {}
+                    } message: {
+                        Text(alertService.message.text)
+                    }
+        }
     }
-}
-```
+    ```
 
-4. Next, since you added that **Link** property, you can check to see if was made available to you when you fetched and decoded the JSON.
-
-   1. After the Button,  use an `if let` to unwrap it and then create a **Link** button using the `link.title` as the label and the `link.url` to form a URL with that string for the destination url.  And it has to be unwrapped.
-
-   ```swift
-   if let link = alertService.message.link {
-       Link(link.title, destination: URL(string: link.url)!)
-   }
-   ```
-
-5. Then one final thing to make this even better.  Create an extension for View
-
-```swift
-extension View {
-  
-}
-```
-
+4. Then one final thing to make this even better.  Create an extension for View
+    ```swift
+    extension View {
+    
+    }
+    ```
 6. And then within the extension, create a function called **messageAlert** that has a single parameter that is an *AlertService*'.
 
    1. In the body, apply the modifier function, passing in the `AlertService.AlertModifier`, providing  *alertService* as the argument.
@@ -426,33 +539,14 @@ extension View {
 
 ### Update JSON Object
 
+Now, you can provide a new json payload to your users, providing any of those optional properties as key value pairs.  Since your message struct specifies that all three are optional, you can leave one two or all three out of the mix.
 
+On GitHub then, in your pages published *messages.json* file, you can adjust your json to accommodate the change.
 
-To solve this issue, you can introduce 3 more key value pairs in your messages.json file and adjust your message struct to accommodate the change so that your current implemetation of this solution will not break.
+Return to the **GitHub pages** repository and open the **messages.json** file for editing.
 
-```swift
-   [
-      {
-         "id":3,
-         "bundleId":"com.createchsol.AppAlertExampleExtra",
-         "title":"App Alert",
-         "text":"Warning:  There is a bug in the application and I am working on it.",
-         "confirmLabel":"OK",
-         "osVersions": ["17.0.1", "17.2"],
-         "appVersions": ["1.0"],
-         "link":{
-            "title":"More information",
-            "url":"https://www.createchsol.com"
-         }
-      }
-   ]
-
-```
-
-1. Return to the **GitHub pages** repository and open the **messages.json** file for editing.
-
-   1. Increment the id.
-   2. Change the title and text to something appropriate.
+1. Increment the id.
+2. Change the title and text to something appropriate.
 
 
 #### Version Checking
@@ -460,20 +554,22 @@ To solve this issue, you can introduce 3 more key value pairs in your messages.j
 1. Add two more key value pairs. (Make sure you add a comma after the confirmLabel key value pair).
 
    1. For the first, create the key `osVersions` and for the value, priced an array of strings representing each of the different OS versions that the issue might apply to.  For example, at the time this document/video was created, the current iOS version is 17.0.1 and the beta version is 17.2
-   2. For the second, create th key `appVersions` and this too will be an array of your app versions that the issue might apply to.  For example current version of the app is 1.0, so create a single string element in the array, but in the future, the issue might also apply to previous versions of your app so you would have to include them as well.
+   2. For the second, create the key `appVersions` and this too will be an array of your app versions that the issue might apply to.  For example current version of the app is 1.0, so create a single string element in the array, but in the future, the issue might also apply to previous versions of your app so you would have to include them as well.
 
    ```swift
     "osVersions": ["17.0.1", "17.2"]
     "appVersions": ["1.0"],
    ```
 
-   3. The previous two key value pairs will correspond to two properties that we will have to create in our *Message* struct, but they will be *optional* properties.  This means that you can omit one or more of these properties in your JSON if you do not want to check for it, like our original code.  **However, if you include one or both of them, you MUST provide an array of strings, or an empty array**.
+   The key strings correspond to the property names for your two optional version properties in the *Message* struct.
+   
+   This means that you can omit one or more of these properties in your JSON if you do not want to check for them.  **However, if you include one or both of them, you MUST provide an array of strings, or an empty array**.
 
 #### Link
 
 The Link, will be an optional button on the alert that will allow the user to navigate to an external web site by tapping on the link.
 
-1. The link object will have two key value pairs so this will require another json object
+1. The link object will have two key value pairs so this will require another json object.  Again, make sure you add a comma after the last key value pair.
 
    ```swift
    "link": {
@@ -518,7 +614,7 @@ The Link, will be an optional button on the alert that will allow the user to na
 
 1. Return to your app now and run.  
 
-   This time, because the fetched message has found an id that is greater than the one stored in the UserDefaults, the alert is presented.
+   This time, when the app is run, three checks must be made.
 
    Also, because this message had a Link object, that link button is also presented, and tapping on it will take you to the specified web site.
 
@@ -542,6 +638,8 @@ static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferen
 
 ```swift
 .onAppear {
+    print(AlertService.appVersion)
+    print(AlertService.osVersion)
     print(AlertService.cacheLocation.path())
     print(AlertService.userDefaultsLocation.path())
 }
@@ -555,7 +653,7 @@ If you are not getting an alert and you expect one, it could be that the cache h
 
 ### Updating the lastMessageId
 
-If I want to test the app out again, you can either go back and update that JSON object by providing a higher `id` value, or you can change the value stored in UserDefaults so that it is less than the value in your message id.
+If I want to test the app out again, you can either go back and update that JSON object by providing a higher `id` value, changing the apps version number, or you can change the value stored in UserDefaults so that it is less than the value in your message id.
 
 If you do not update the JSON, but still want to verify that all is well, you can either delete the current userDefaults and run again.  However, you may have other values persisted in UserDefaults unrelated to this alert so deleting it may not be a great idea.  What you can do, is update that single value by setting it back to some value lower than the id in the message json for this application.
 
@@ -568,8 +666,6 @@ It turns out that this is just a file in the preferences folder your my app and 
 I hope that you have found this tutorial helpful and that you can see uses for this technique in your own projects.
 
 I am sure you can get creative with the JSON payload so that you can provide much more information and instead of presenting an alert, present a modal sheet instead.
-
-One thing you might consider is to create another static property that will provide the OS version and another for the version number of your application.  Then in the JSON file create string keys for these and if necessary, provide os values and build numbers that might trigger a specific action in your application based on a comparison like you did with the id.
 
 It is all up to your own imagination here.  It is very powerful.
 
