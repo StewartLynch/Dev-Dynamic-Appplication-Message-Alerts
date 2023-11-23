@@ -328,6 +328,8 @@ In this section we will account for both of these cases.
 
 ### New Static Properties
 
+If you are going to perform a check on the version of the app that the user is running, or the version of iOS that they have installed, you will need to create two more static properties in your AppService class.
+
 1. In **AppService**, create a new static property called `appVersion`.  To obtain this you can access the Bundle.main.infodictonary, providing the key "CFBundleShortVersionString" and cast it as a String.  The infoDictonary must also be unwrapped
 
 ```swift
@@ -340,6 +342,7 @@ static let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"
 static let osVersion = UIDevice.current.systemVersion
 ```
 
+3. As this is accessing the UIKit framework, you will have to `import UIKit`
 3. If you want to see the output of these two properties when the app launches, you can add two print statements to an *onAppear* block at the app starting point.
 
 ```swift
@@ -347,15 +350,13 @@ print(AlertService.appVersion)
 print(AlertService.osVersion)
 ```
 
-If you are going to perform a check on the version of the app that the user is running, or the version of iOS that they have installed, you will need to create two more static properties in your AppService
-
 ### Update the Message struct
 
 #### Version Checking
 
 Next, you need to update the *Message* struct so that it can decode the json if any of these two properties have corresponding values from the key value pairs that we might provide. 
 
-Since we may not care about these to properties, you can make them optional, but you might also want to check for more than one app version or os version, so you need to make the two properties optional and be an optional array of String representing the possible versions to check against.
+Since we may not care about these two properties, you can make them optional, but you might also want to check for more than one app version or os version, so you need to make the two properties optional and be an optional array of String representing the possible versions to check against.
 
 I would recommend you use a plural for both to signify that your properties are arrays.
 
@@ -366,9 +367,9 @@ var osVersions: [String]?
 
 #### Link
 
-The next property will be used for the alert presentation.  If it exists, we want it to provide a string for a label and another one for a url that we can form a url from and then add another action to our alert that will be a Link button with the label being the provided string and the destination the provided url.
+The next property will be used for the alert presentation.  If it exists, we want it to provide a string for a label and another one for a url from which we can form a url and then add another action to our alert that will be a Link button with the label being the provided string and the destination the provided url.
 
-1. Since this is two properties and they are associated with each other, unlike the first two, you can create a struct called **Link** to represent these two properties.  Since it will have to be decoded, it must conform to the **Codable** protocol.
+1. Since this is two properties and they are associated with each other, unlike the first two, you can create a struct called **Link** to represent these two properties.  Also, since it will have to be decoded, it must conform to the **Codable** protocol.
 
 ```swift
 struct Link: Codable {
@@ -385,15 +386,15 @@ struct Link: Codable {
 }
 ```
 
-3. As you may not want to include this link every time you present an alert, you can make it optional as an additional property for your Message struct.  This will mean that the existing *messages.json* is still valid for the current message instance already tested.
+3. As you may not want to include this link button every time you present an alert, you can make it optional as an additional property for your Message struct.  This will mean that the existing *messages.json* is still valid for the current message instance already tested.
 
 ```swift
 var link: Link?
 ```
 
-You now have potentially 3 more properties being decoded from the fetched json.  If the key value pairs are found those optional values will be part of you decoded and filtered message.
+You now have potentially 3 more properties being decoded from the fetched json.  If the key value pairs are found, those optional values will be part of your decoded and filtered message.
 
-Two of those properties will be used as checks along with the id to determine of an alert needs to be presented.  The link property will determine if the alert will have an additional button.
+Two of those properties will be used as checks along with the id to determine if an alert needs to be presented.  The *link* property will determine if the alert will have an additional button.
 
 ### Update showAlertIfNecessary
 
@@ -408,16 +409,16 @@ lastMessageId = message.id
 ```
 
 1. You can leave the await for fetchMessage() call but instead of using an if statement, replace that with a guard statement.
-   1. Guard checking that the message.id is greater than lastMessageId requires that you provide and else statement
-   2. The else clause is run when the guard check fails, so you can simply return and do nothing
+   1. Guard checking that the message.id is greater than lastMessageId requires that you provide and else statement.
+   2. The else clause is run when the guard check fails, so you can simply return and do nothing.
 
     ```swift
     guard message.id > lastMessageId else { return }
     ```
 
-2. Follow this with another check that will use an `if...let` to check for and unwrap the message.osVersions if it decoded this, meaning that the json provided an **osVersions** key
+2. Follow this with another check that will use an `if...let` to check for and unwrap the message.osVersions if it decoded this, meaning that the json provided an **osVersions** key.
 
-   1. If this is true, you can create another guard check to see if the found array contains the static **Self.osVersions**.  If it does not, in the else clause, you can return from the function and go no further.
+   1. If this is true, you can create another guard check to see if the found array contains the static **Self.osVersion**.  If it does not, in the else clause, you can return from the function and go no further.
 
    ```swift
    if let osVersions = message.osVersions {
@@ -425,14 +426,14 @@ lastMessageId = message.id
    }
    ```
    
-   2. You can do a similar check to unwrap and check if the decoded **appVersions** property contains the **Self.appVersions** else return.
+   2. You can do a similar check to unwrap and check if the decoded **appVersions** property contains the **Self.appVersion** else return.
    
     ```swift
     if let appVersions = message.appVersions {
       guard appVersions.contains(Self.appVersion) else { return }
     }
     ```
-   3. If the function has not returned yet, then only now can you toggle the ***showMessage*** property and set the **lastMessageId** to the **message.id**
+   3. If the function has not returned yet, then only now can you toggle the ***showMessage*** property and set the **lastMessageId** to the **message.id**.
 
     ```swift
     showMessage.toggle()
@@ -477,13 +478,13 @@ In **ContentView** you can check to see if was made available to you when you fe
 
 ### ViewModifier
 
-There is also something that I do not particularly like about this implementation so far.  If you look at the code for that alert will note that it  be the same for every app, so why not bring that code into your **AlertService** as a **ViewModifier**.
+There is also something that I do not particularly like about this implementation so far.  If you look at the code for that alert will note that it will be the same for every app, so why not bring that code into your **AlertService** as a **ViewModifier**.
 
 1. Cut out the *Alert* code and return to the **AlertService** file.
-2. **Import SwiftUI** as you will need it to create a view modifier.
-3. Inside the AlertService class, create a view modifier called **AlertModifier** that conforms to **ViewModifier**
-   1. This will have one requirement, a body function that has *content* as a parameter and returns *some view* 
-   2.  You can use that content then to apply an alert to.
+2. You will need to **Import SwiftUI** as you will need it to create a view modifier so since this also includes UIKit, you can change the import from UIKit to SwiftUI.
+3. Inside the *AlertService* class, create a view modifier called **AlertModifier** that conforms to **ViewModifier**.
+   1. This will have one requirement, a body function that has *content* as a parameter and returns *some view*.
+   2.  You can use that *content* then to apply an alert to.
 
     ```swift
      struct AlertModifier: ViewModifier {
@@ -495,7 +496,7 @@ There is also something that I do not particularly like about this implementatio
 
 3. You can paste in the alert that you copied from contentView as the modifier for *content*.
    1. This will complain because there is no **alertService**, so we will need to pass that in when we call the modifier.
-   2. So create a new property called **alertService** that is of type Alert Service** and it will have to be a **Bindable** object.
+   2. So create a new property called **alertService** that is of type *AlertService* and it will have to be a **Bindable** object.
 
     ```swift
     struct AlertModifier: ViewModifier {
@@ -513,13 +514,13 @@ There is also something that I do not particularly like about this implementatio
     }
     ```
 
-4. Then one final thing to make this even better.  Create an extension for View
+4. Then one final thing to make this even better.  Create an extension for View outside of the AlertService class.
     ```swift
     extension View {
     
     }
     ```
-6. And then within the extension, create a function called **messageAlert** that has a single parameter that is an *AlertService*'.
+6. And then within the extension, create a function called **messageAlert** that has a single parameter that is an *AlertService*.
 
    1. In the body, apply the modifier function, passing in the `AlertService.AlertModifier`, providing  *alertService* as the argument.
 
@@ -551,10 +552,10 @@ Return to the **GitHub pages** repository and open the **messages.json** file fo
 
 #### Version Checking
 
-1. Add two more key value pairs. (Make sure you add a comma after the confirmLabel key value pair).
+1. Add two more key value pairs. (Make sure you add a comma after the *confirmLabel* key value pair).
 
    1. For the first, create the key `osVersions` and for the value, priced an array of strings representing each of the different OS versions that the issue might apply to.  For example, at the time this document/video was created, the current iOS version is 17.0.1 and the beta version is 17.2
-   2. For the second, create the key `appVersions` and this too will be an array of your app versions that the issue might apply to.  For example current version of the app is 1.0, so create a single string element in the array, but in the future, the issue might also apply to previous versions of your app so you would have to include them as well.
+   2. For the second, create the key `appVersions` and this too will be an array of your app versions that the issue might apply to.  For example, you can check what the current version of your app is by either running the app and seeing what gets printed to the console, or you can check the General tab for your app target and find it in the *Version* field.  So create a single string element in the array, but in the future, the issue might also apply to previous versions of your app so you would have to include them as well.
 
    ```swift
     "osVersions": ["17.0.1", "17.2"]
@@ -626,11 +627,11 @@ It turns out that your app is caching the html content.  Eventually, the cache w
 
 1. You just need to know where to look for that cache, and as another thought, perhaps, you just want to update the stored *lastMessageId*.  Where is that information persisted?
 2. Add two static properties to your *AlertService*
-   1. Name the first, `cacheLocation` and it will be the static property `URL.cachesDirectory`
+   1. Name the first, `cachesLocation` and it will be the static property `URL.cachesDirectory`
    2. The second is the `userDefaultsLocation` which is also a static static property for `URL.libraryDirectory` by appending the path `Preferences`
 
 ```swift
-static let cacheLocation = URL.cachesDirectory
+static let cachesLocation = URL.cachesDirectory
 static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferences")
 ```
 
@@ -640,7 +641,7 @@ static let userDefaultsLocation = URL.libraryDirectory.appending(path: "Preferen
 .onAppear {
     print(AlertService.appVersion)
     print(AlertService.osVersion)
-    print(AlertService.cacheLocation.path())
+    print(AlertService.cachesLocation.path())
     print(AlertService.userDefaultsLocation.path())
 }
 ```
